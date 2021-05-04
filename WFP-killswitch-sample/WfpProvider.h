@@ -55,7 +55,9 @@ public:
         __in const GUID* providerKey,
         __in const GUID* subLayerKey
     );
-
+	
+    void CreateAllFilters(std::vector<std::wstring> appsToPermit);
+	
     static DWORD FilterByUserAndApp(
         __in HANDLE engine,
         __in PCWSTR filterName,

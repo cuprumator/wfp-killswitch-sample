@@ -392,3 +392,20 @@ bool DeleteFilter(_In_ HANDLE hengine, _In_ LPCGUID filterId)
 
     return code == ERROR_SUCCESS;
 }
+
+void WfpProvider::CreateAllFilters(vector<wstring> appsToPermit)
+{
+    DWORD result = ERROR_SUCCESS;
+	
+	result = FwpmTransactionBegin0(m_engine, 0);
+
+	//all code here
+    ConfigOutboundTraffic(true);
+
+	for(const auto path: appsToPermit)
+	{
+        ApplyAppFilters(path);
+	}
+	
+    result = FwpmTransactionCommit0(m_engine);
+}
