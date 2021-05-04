@@ -3,6 +3,7 @@
 #include <fwpmtypes.h>
 #include <fwptypes.h>
 #include <fwpvi.h>
+#include <string>
 #include <vector>
 #include <windows.h>
 
@@ -38,8 +39,11 @@ class WfpProvider
 private:
     HANDLE m_engine = NULL;
     std::vector<GUID> m_filderIds;
+    std::vector<GUID> m_AppFilderIds;
+
 private:
     void ConfigOutboundTraffic(bool isBlock);
+    void ApplyAppFilters(std::wstring appPath);
     unsigned long Createfilter(_In_ HANDLE hengine, _In_opt_ LPCWSTR name,
         _In_count_(count) FWPM_FILTER_CONDITION* lpcond, _In_ UINT32 count, _In_ UINT8 weight,
         _In_opt_ LPCGUID layer_id, _In_opt_ LPCGUID callout_id, _In_ FWP_ACTION_TYPE action,

@@ -7,8 +7,10 @@
 #include <stdio.h>
 #include <string>
 #include <vector>
+#include <filesystem>
 
 using namespace std;
+namespace fs = std::filesystem;
 
 DWORD WfpProvider::Install()
 {
@@ -338,7 +340,7 @@ void WfpProvider::ConfigOutboundTraffic(bool isBlock)
     Createfilter(m_engine, FILTER_NAME_BLOCK_CONNECTION_REDIRECT, nullptr, 0, 0x08, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V6, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
 }
 
-void ApplyAppRules(wstring appPath)
+void WfpProvider::ApplyAppFilters(wstring appPath)
 {
     UINT32 count = 0;
     SIZE_T enum_key = 0;
@@ -356,14 +358,37 @@ void ApplyAppRules(wstring appPath)
 
         count += 1;
     }
-	
+
+    auto name = fs::path(appPath).filename().c_str();
+
+    FWP_ACTION_TYPE action = FWP_ACTION_PERMIT;
+
+	// weight for app filter
+    const UINT8 weight = 0x09;
+
+	// outbound layer filter
+	// permit ipv4 for app
+    Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_CONNECT_V4, nullptr, action, 0, m_AppFilderIds);
+
+    // win7+
+    Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V4, nullptr, action, 0, m_AppFilderIds);
    
-	
+    // permit ipv6 for app
+    Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_CONNECT_V6, nullptr, action, 0, m_AppFilderIds);
+
+    // win7+
+    Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V6, nullptr, action, 0, m_AppFilderIds);
+
+	// inbound layer filter
+    Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4, nullptr, action, 0, m_AppFilderIds);
+    Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, action, 0, m_AppFilderIds);
+
+    FwpmFreeMemory0(reinterpret_cast<void**>(&fwpApplicationByteBlob));
 }
 
 bool DeleteFilter(_In_ HANDLE hengine, _In_ LPCGUID filterId)
 {
-	ULONG code = FwpmFilterDeleteByKey(hengine, filterId);
+	const auto code = FwpmFilterDeleteByKey(hengine, filterId);
 
     return code == ERROR_SUCCESS;
 }
