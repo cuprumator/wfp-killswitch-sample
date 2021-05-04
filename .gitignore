@@ -331,3 +331,5 @@ ASALocalRun/
 
 # Fetched protobuf files
 *.proto
+*.filters
+*.user
