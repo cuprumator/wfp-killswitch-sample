@@ -37,7 +37,7 @@ const GUID SublayerKey =
 class WfpProvider
 {
 private:
-    HANDLE m_engine = NULL;
+    HANDLE m_engine = nullptr;
     std::vector<GUID> m_filderIds;
     std::vector<GUID> m_AppFilderIds;
 
