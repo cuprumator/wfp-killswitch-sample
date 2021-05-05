@@ -279,7 +279,6 @@ unsigned long WfpProvider::Createfilter(_In_ HANDLE hengine, _In_opt_ LPCWSTR na
     FWPM_FILTER filter = { 0 };
 
     wstring filter_name;
-    LPCWSTR filter_type_string;
     UINT64 filter_id;
     ULONG code;
 
@@ -297,7 +296,7 @@ unsigned long WfpProvider::Createfilter(_In_ HANDLE hengine, _In_opt_ LPCWSTR na
         filter.flags |= flags;
 
     filter.displayData.name = _wcsdup(filter_name.c_str());
-    filter.displayData.description = _wcsdup(filter_name.c_str());;
+    filter.displayData.description = _wcsdup(filter_name.c_str());
     filter.providerKey = const_cast<LPGUID>(&ProviderKey);
     filter.subLayerKey = SublayerKey;
     filter.weight.type = FWP_UINT8;
@@ -343,7 +342,6 @@ void WfpProvider::ConfigOutboundTraffic(bool isBlock)
 void WfpProvider::ApplyAppFilters(wstring appPath)
 {
     UINT32 count = 0;
-    SIZE_T enum_key = 0;
     FWPM_FILTER_CONDITION fwfc[8] = { 0 };
     //PCWSTR appPath = _wcsdup(L"C:\\Program Files\\Mozilla Firefox\\firefox.exe");
     FWP_BYTE_BLOB* fwpApplicationByteBlob;
@@ -402,7 +400,7 @@ void WfpProvider::CreateAllFilters(vector<wstring> appsToPermit)
 	//all code here
     ConfigOutboundTraffic(true);
 
-	for(const auto path: appsToPermit)
+	for(const auto& path: appsToPermit)
 	{
         ApplyAppFilters(path);
 	}
