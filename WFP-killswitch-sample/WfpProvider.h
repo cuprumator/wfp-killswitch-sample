@@ -11,6 +11,9 @@
 #define APP_NAME_SHORT L"killswitchsample"
 #define FILTER_NAME_BLOCK_CONNECTION L"BlockConnection"
 #define FILTER_NAME_BLOCK_CONNECTION_REDIRECT L"BlockConnectionRedirect"
+#define FILTER_NAME_BLOCK_RECVACCEPT L"BlockRecvAccept"
+
+#define FILTER_WEIGHT_HIGHEST_IMPORTANT 0x0F
 
 #define EXIT_ON_ERROR(fnName) \
    if (result != ERROR_SUCCESS) \
