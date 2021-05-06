@@ -1,10 +1,22 @@
 #pragma once
 
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
+
 #include <fwpmtypes.h>
 #include <fwptypes.h>
 #include <fwpvi.h>
+
+#include <accctrl.h>
+#include <aclapi.h>
+#include <stdio.h>
+#include <fwpmu.h>
+
 #include <string>
 #include <vector>
+#include <filesystem>
+
 #include <windows.h>
 
 #define APP_NAME L"killswitchsample"
@@ -60,17 +72,5 @@ public:
     );
 	
     void CreateAllFilters(std::vector<std::wstring> appsToPermit);
-	
-    static DWORD FilterByUserAndApp(
-        __in HANDLE engine,
-        __in PCWSTR filterName,
-        __in_opt const GUID* providerKey,
-        __in const GUID* layerKey,
-        __in_opt const GUID* subLayerKey,
-        __in_opt PCWSTR userName,
-        __in_opt PCWSTR appPath,
-        __in FWP_ACTION_TYPE actionType,
-        __out_opt UINT64* filterId
-    );
 };
 
