@@ -159,7 +159,7 @@ unsigned long WfpProvider::Createfilter(_In_ HANDLE hengine, _In_opt_ LPCWSTR na
 {
     FWPM_FILTER filter = { 0 };
 
-    wstring filter_name;
+    wstring filter_name = L"";
     UINT64 filter_id;
     ULONG code;
 
@@ -170,8 +170,11 @@ unsigned long WfpProvider::Createfilter(_In_ HANDLE hengine, _In_opt_ LPCWSTR na
     {
         return hr;
     }
-
-    filter_name = APP_NAME + wstring(name);
+	
+    if (name) 
+    {
+        filter_name = APP_NAME + wstring(name);
+    }
 
     filter.flags |= FWPM_FILTER_FLAG_INDEXED;
 
