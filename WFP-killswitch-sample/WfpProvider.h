@@ -1,9 +1,5 @@
 #pragma once
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <iphlpapi.h>
-
 #include <fwpmtypes.h>
 #include <fwptypes.h>
 #include <fwpvi.h>
@@ -17,15 +13,24 @@
 #include <vector>
 #include <filesystem>
 
-#include <windows.h>
-
 #define APP_NAME L"killswitchsample"
 #define APP_NAME_SHORT L"killswitchsample"
+
+#define FILTER_NAME_ICMP_ERROR L"BlockIcmpError"
+#define FILTER_NAME_TCP_RST_ONCLOSE L"BlockTcpRstOnClose"
 #define FILTER_NAME_BLOCK_CONNECTION L"BlockConnection"
 #define FILTER_NAME_BLOCK_CONNECTION_REDIRECT L"BlockConnectionRedirect"
 #define FILTER_NAME_BLOCK_RECVACCEPT L"BlockRecvAccept"
 
+// filter weights
 #define FILTER_WEIGHT_HIGHEST_IMPORTANT 0x0F
+#define FILTER_WEIGHT_HIGHEST 0x0E
+#define FILTER_WEIGHT_BLOCKLIST 0x0D
+#define FILTER_WEIGHT_CUSTOM_BLOCK 0x0C
+#define FILTER_WEIGHT_CUSTOM 0x0B
+#define FILTER_WEIGHT_SYSTEM 0x0A
+#define FILTER_WEIGHT_APPLICATION 0x09
+#define FILTER_WEIGHT_LOWEST 0x08
 
 #define EXIT_ON_ERROR(fnName) \
    if (result != ERROR_SUCCESS) \
