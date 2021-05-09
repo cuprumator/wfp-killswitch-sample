@@ -398,7 +398,7 @@ void WfpProvider::ConfigOutboundTraffic(bool isBlock)
     Createfilter(m_engine, FILTER_NAME_BLOCK_RECVACCEPT, nullptr, 0, FILTER_WEIGHT_LOWEST, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
 }
 
-void WfpProvider::ApplyAppFilters(wstring appPath)
+void WfpProvider::ApplyAppFilters(const wstring& appPath, const wstring& remoteRule = L"", const wstring& localRule = L"", UINT8 protocol = 0)
 {
     UINT32 count = 0;
     FWPM_FILTER_CONDITION fwfc[8] = { 0 };
@@ -416,8 +416,38 @@ void WfpProvider::ApplyAppFilters(wstring appPath)
         count += 1;
     }
 
-    auto name = fs::path(appPath).filename().c_str();
+    const wstring path_string{ fs::path(appPath).filename().wstring() };
+    const auto* name = path_string.c_str();
 
+    const vector<wstring> rules = { remoteRule, localRule };
+
+    for (const auto& rule : rules)
+    {
+        if (rule.empty())
+        {
+            continue;
+        }
+
+        const auto port = static_cast<UINT16>(stoi(rule));
+
+        fwfc[count].fieldKey = ((count == 1) ? FWPM_CONDITION_IP_REMOTE_PORT : FWPM_CONDITION_IP_LOCAL_PORT);
+        fwfc[count].matchType = FWP_MATCH_EQUAL;
+        fwfc[count].conditionValue.type = FWP_UINT16;
+        fwfc[count].conditionValue.uint16 = port;
+
+        count += 1;
+    }
+
+    if (protocol)
+    {
+        fwfc[count].fieldKey = FWPM_CONDITION_IP_PROTOCOL;
+        fwfc[count].matchType = FWP_MATCH_EQUAL;
+        fwfc[count].conditionValue.type = FWP_UINT8;
+        fwfc[count].conditionValue.uint8 = protocol;
+
+        count += 1;
+    }
+	
     FWP_ACTION_TYPE action = FWP_ACTION_PERMIT;
 
 	// weight for app filter

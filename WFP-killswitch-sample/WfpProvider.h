@@ -63,7 +63,7 @@ private:
 
 private:
     void ConfigOutboundTraffic(bool isBlock);
-    void ApplyAppFilters(std::wstring appPath);
+    void ApplyAppFilters(const std::wstring& appPath, const std::wstring& remoteRule, const std::wstring& localRule, UINT8 protocol);
     unsigned long Createfilter(_In_ HANDLE hengine, _In_opt_ LPCWSTR name,
         _In_count_(count) FWPM_FILTER_CONDITION* lpcond, _In_ UINT32 count, _In_ UINT8 weight,
         _In_opt_ LPCGUID layer_id, _In_opt_ LPCGUID callout_id, _In_ FWP_ACTION_TYPE action,
