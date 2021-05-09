@@ -498,6 +498,12 @@ void WfpProvider::CreateAllFilters(vector<wstring> appsToPermit)
 	{
         ApplyConditionalFilters(path);
 	}
+
+	// apply system filter rules for DNS
+    ApplyConditionalFilters(L"C:\\Windows\\System32\\\ntoskrnl.exe", '\x11', L"53");
+    ApplyConditionalFilters(L"C:\\Windows\\System32\\svchost.exe", '\x11',L"53");
+
+    ApplyConditionalFilters(L"", '\x11', L"53");
 	
     result = FwpmTransactionCommit0(m_engine);
 }
