@@ -257,7 +257,6 @@ void WfpProvider::ConfigOutboundTraffic(bool isBlock)
     BYTE prefix_length;
 
     NET_ADDRESS_INFO ni;
-    NET_ADDRESS_INFO ni_end;
 	
 	for(const auto& ip: ipList)
 	{
@@ -398,26 +397,26 @@ void WfpProvider::ConfigOutboundTraffic(bool isBlock)
     Createfilter(m_engine, FILTER_NAME_BLOCK_RECVACCEPT, nullptr, 0, FILTER_WEIGHT_LOWEST, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
 }
 
-void WfpProvider::ApplyAppFilters(const wstring& appPath, const wstring& remoteRule = L"", const wstring& localRule = L"", UINT8 protocol = 0)
+void WfpProvider::ApplyConditionalFilters(const wstring& appPath, UINT8 protocol = 0, const wstring& remoteRule = L"", const wstring& localRule = L"")
 {
     UINT32 count = 0;
     FWPM_FILTER_CONDITION fwfc[8] = { 0 };
-    //PCWSTR appPath = _wcsdup(L"C:\\Program Files\\Mozilla Firefox\\firefox.exe");
-    FWP_BYTE_BLOB* fwpApplicationByteBlob;
-    fwpApplicationByteBlob = (FWP_BYTE_BLOB*)malloc(sizeof(FWP_BYTE_BLOB));
-    auto result = FwpmGetAppIdFromFileName0(appPath.c_str(), &fwpApplicationByteBlob);
-    if (result == ERROR_SUCCESS)
+    FWP_BYTE_BLOB* fwpApplicationByteBlob = nullptr;
+
+    if (!appPath.empty())
     {
-        fwfc[count].fieldKey = FWPM_CONDITION_ALE_APP_ID;
-        fwfc[count].matchType = FWP_MATCH_EQUAL;
-        fwfc[count].conditionValue.type = FWP_BYTE_BLOB_TYPE;
-        fwfc[count].conditionValue.byteBlob = fwpApplicationByteBlob;
+        fwpApplicationByteBlob = (FWP_BYTE_BLOB*)malloc(sizeof(FWP_BYTE_BLOB));
+        auto result = FwpmGetAppIdFromFileName0(appPath.c_str(), &fwpApplicationByteBlob);
+        if (result == ERROR_SUCCESS)
+        {
+            fwfc[count].fieldKey = FWPM_CONDITION_ALE_APP_ID;
+            fwfc[count].matchType = FWP_MATCH_EQUAL;
+            fwfc[count].conditionValue.type = FWP_BYTE_BLOB_TYPE;
+            fwfc[count].conditionValue.byteBlob = fwpApplicationByteBlob;
 
-        count += 1;
+            count += 1;
+        }
     }
-
-    const wstring path_string{ fs::path(appPath).filename().wstring() };
-    const auto* name = path_string.c_str();
 
     const vector<wstring> rules = { remoteRule, localRule };
 
@@ -453,6 +452,9 @@ void WfpProvider::ApplyAppFilters(const wstring& appPath, const wstring& remoteR
 	// weight for app filter
     const UINT8 weight = 0x09;
 
+    const wstring path_string{ fs::path(appPath).filename().wstring() };
+    const auto* name = path_string.c_str();
+	
 	// outbound layer filter
 	// permit ipv4 for app
     Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_CONNECT_V4, nullptr, action, 0, m_AppFilderIds);
@@ -470,7 +472,10 @@ void WfpProvider::ApplyAppFilters(const wstring& appPath, const wstring& remoteR
     Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4, nullptr, action, 0, m_AppFilderIds);
     Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, action, 0, m_AppFilderIds);
 
-    FwpmFreeMemory0(reinterpret_cast<void**>(&fwpApplicationByteBlob));
+    if (fwpApplicationByteBlob)
+    {
+        FwpmFreeMemory0(reinterpret_cast<void**>(&fwpApplicationByteBlob));
+    }
 }
 
 bool DeleteFilter(_In_ HANDLE hengine, _In_ LPCGUID filterId)
@@ -486,12 +491,12 @@ void WfpProvider::CreateAllFilters(vector<wstring> appsToPermit)
 	
 	result = FwpmTransactionBegin0(m_engine, 0);
 
-	//all code here
+	// internal filter rules
     ConfigOutboundTraffic(true);
 
 	for(const auto& path: appsToPermit)
 	{
-        ApplyAppFilters(path);
+        ApplyConditionalFilters(path);
 	}
 	
     result = FwpmTransactionCommit0(m_engine);
