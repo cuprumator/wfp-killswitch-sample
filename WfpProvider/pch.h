@@ -7,6 +7,14 @@
 #ifndef PCH_H
 #define PCH_H
 
+
+#include <winsock2.h>
+#include <ws2ipdef.h>
+#include <ws2tcpip.h>
+#include <windns.h>
+#include <mstcpip.h>
+#include <iphlpapi.h>
+
 // add headers that you want to pre-compile here
 #include "framework.h"
 

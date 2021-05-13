@@ -5,6 +5,8 @@ VisualStudioVersion = 16.0.31112.23
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WFP-killswitch-sample", "WFP-killswitch-sample\WFP-killswitch-sample.vcxproj", "{1F8E331D-A141-4B94-96EA-C31D196EE193}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WfpProvider", "WfpProvider\WfpProvider.vcxproj", "{52DBB177-8E50-48B3-8904-6E9F3A5CA1DB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -22,6 +24,14 @@ Global
 		{1F8E331D-A141-4B94-96EA-C31D196EE193}.Release|x64.Build.0 = Release|x64
 		{1F8E331D-A141-4B94-96EA-C31D196EE193}.Release|x86.ActiveCfg = Release|Win32
 		{1F8E331D-A141-4B94-96EA-C31D196EE193}.Release|x86.Build.0 = Release|Win32
+		{52DBB177-8E50-48B3-8904-6E9F3A5CA1DB}.Debug|x64.ActiveCfg = Debug|x64
+		{52DBB177-8E50-48B3-8904-6E9F3A5CA1DB}.Debug|x64.Build.0 = Debug|x64
+		{52DBB177-8E50-48B3-8904-6E9F3A5CA1DB}.Debug|x86.ActiveCfg = Debug|Win32
+		{52DBB177-8E50-48B3-8904-6E9F3A5CA1DB}.Debug|x86.Build.0 = Debug|Win32
+		{52DBB177-8E50-48B3-8904-6E9F3A5CA1DB}.Release|x64.ActiveCfg = Release|x64
+		{52DBB177-8E50-48B3-8904-6E9F3A5CA1DB}.Release|x64.Build.0 = Release|x64
+		{52DBB177-8E50-48B3-8904-6E9F3A5CA1DB}.Release|x86.ActiveCfg = Release|Win32
+		{52DBB177-8E50-48B3-8904-6E9F3A5CA1DB}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

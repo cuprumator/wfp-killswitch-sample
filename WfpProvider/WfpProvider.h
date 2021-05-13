@@ -13,7 +13,6 @@
 #include <vector>
 #include <filesystem>
 
-#define m_appName L"killswitchsample"
 #define APP_NAME_SHORT L"killswitchsample"
 
 #define FILTER_NAME_ICMP_ERROR L"BlockIcmpError"
@@ -57,25 +56,27 @@ const GUID SublayerKey =
 class WfpProvider
 {
 private:
-    HANDLE m_engine = nullptr;
-    std::vector<GUID> m_filderIds;
-    std::vector<GUID> m_AppFilderIds;
+    static HANDLE m_engine;
+    static std::vector<GUID> m_filderIds;
+    static std::vector<GUID> m_AppFilderIds;
+    static std::wstring m_appName;
 
 private:
-    void ConfigOutboundTraffic(bool isBlock);
-    void ApplyConditionalFilters(const std::wstring& appPath, UINT8 protocol, const std::wstring& remoteRule, const std::wstring& localRule);
-    unsigned long Createfilter(_In_ HANDLE hengine, _In_opt_ LPCWSTR name,
+    static void ConfigOutboundTraffic(bool isBlock);
+    static void ApplyConditionalFilters(const std::wstring& appPath, UINT8 protocol, const std::wstring& remoteRule, const std::wstring& localRule);
+    static unsigned long Createfilter(_In_ HANDLE hengine, _In_opt_ LPCWSTR name,
         _In_count_(count) FWPM_FILTER_CONDITION* lpcond, _In_ UINT32 count, _In_ UINT8 weight,
         _In_opt_ LPCGUID layer_id, _In_opt_ LPCGUID callout_id, _In_ FWP_ACTION_TYPE action,
         _In_ UINT32 flags, std::vector<GUID> guids);
 public:
-    DWORD Install();
+    static DWORD Install();
 	
-    DWORD Uninstall(
+    static DWORD Uninstall(
         __in const GUID* providerKey,
         __in const GUID* subLayerKey
     );
 	
-    void CreateAllFilters(std::vector<std::wstring> appsToPermit);
+    static void CreateAllFilters(std::vector<std::wstring> appsToPermit);
 };
+
 

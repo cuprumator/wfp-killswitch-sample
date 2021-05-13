@@ -151,10 +151,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="WFP-killswitch-sample.cpp" />
-    <ClCompile Include="WfpProvider.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="WfpProvider.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
