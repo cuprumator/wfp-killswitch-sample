@@ -38,21 +38,6 @@
       goto CLEANUP; \
    }
 
-const GUID ProviderKey =
-{
-   0x5fb216a8,
-   0xe2e8,
-   0x4024,
-   { 0xb8, 0x53, 0x39, 0x1a, 0x41, 0x68, 0x64, 0x1e }
-};
-
-// {827E8AD5-7106-4D6B-B921-DA861F65ACFF}
-const GUID SublayerKey =
-{ 0x827e8ad5, 0x7106, 0x4d6b, { 0xb9, 0x21, 0xda, 0x86, 0x1f, 0x65, 0xac, 0xff } };
-
-
-#define SESSION_NAME L"SDK Examples"
-
 class WfpProvider
 {
 private:
@@ -60,6 +45,8 @@ private:
     static std::vector<GUID> m_filderIds;
     static std::vector<GUID> m_AppFilderIds;
     static std::wstring m_appName;
+    static const GUID m_providerKey;
+    static const GUID m_sublayerKey;
 
 private:
     static void ConfigOutboundTraffic(bool isBlock);
@@ -71,12 +58,10 @@ private:
 public:
     static DWORD Install();
 	
-    static DWORD Uninstall(
-        __in const GUID* providerKey,
-        __in const GUID* subLayerKey
-    );
+    static DWORD Uninstall();
 	
     static void CreateAllFilters(std::vector<std::wstring> appsToPermit);
+    static void DeleteAllFilters();
 };
 
 

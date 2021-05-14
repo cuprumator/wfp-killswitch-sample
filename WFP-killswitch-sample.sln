@@ -5,7 +5,7 @@ VisualStudioVersion = 16.0.31112.23
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WFP-killswitch-sample", "WFP-killswitch-sample\WFP-killswitch-sample.vcxproj", "{1F8E331D-A141-4B94-96EA-C31D196EE193}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WfpProvider", "WfpProvider\WfpProvider.vcxproj", "{52DBB177-8E50-48B3-8904-6E9F3A5CA1DB}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "NativeWfpProvider", "NativeWfpProvider\NativeWfpProvider.vcxproj", "{52DBB177-8E50-48B3-8904-6E9F3A5CA1DB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
