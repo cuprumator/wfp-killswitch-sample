@@ -4,6 +4,10 @@
 
 #include <combaseapi.h>
 
+#include <ScopeExit/ScopeExit.h>
+#include <exceptxx/PrecondException.h>
+#include <exceptxx/Win32Exception.h>
+
 using namespace std;
 namespace fs = std::filesystem;
 
@@ -21,7 +25,7 @@ const GUID WfpProvider::m_providerKey = {
 const GUID WfpProvider::m_sublayerKey =
 { 0x827e8ad5, 0x7106, 0x4d6b, { 0xb9, 0x21, 0xda, 0x86, 0x1f, 0x65, 0xac, 0xff } };
 
-DWORD WfpProvider::Install()
+void WfpProvider::Install()
 {
     DWORD result = ERROR_SUCCESS;
     FWPM_SESSION0 session;
@@ -32,18 +36,19 @@ DWORD WfpProvider::Install()
     session.displayData.description = m_appName.data();
 
     // The authentication service should always be RPC_C_AUTHN_DEFAULT.
-    result = FwpmEngineOpen0(
+    CHECK_WIN32(FwpmEngineOpen0(
 	    nullptr,
         RPC_C_AUTHN_DEFAULT,
 	    nullptr,
         &session,
-        &m_engine
-    );
-    EXIT_ON_ERROR(FwpmEngineOpen0);
-
-    result = FwpmTransactionBegin0(m_engine, 0);
-    EXIT_ON_ERROR(FwpmTransactionBegin0);
-
+        &m_engine));
+  
+    CHECK_WIN32(FwpmTransactionBegin0(m_engine, 0));
+    SCOPE_EXIT
+    {
+        CHECK_WIN32(FwpmTransactionCommit0(m_engine));
+    };
+	
     FWPM_PROVIDER0 provider;
 
     memset(&provider, 0, sizeof(provider));
@@ -53,10 +58,7 @@ DWORD WfpProvider::Install()
 
     result = FwpmProviderAdd0(m_engine, &provider, nullptr);
     // Ignore FWP_E_ALREADY_EXISTS
-    if (result != FWP_E_ALREADY_EXISTS)
-    {
-        EXIT_ON_ERROR(FwpmProviderAdd0);
-    }
+    CHECK_PRECOND(result == ERROR_SUCCESS || result == FWP_E_ALREADY_EXISTS);
 
     FWPM_SUBLAYER0 subLayer;
 
@@ -69,64 +71,34 @@ DWORD WfpProvider::Install()
     subLayer.weight = 0xFFFE;
 
     result = FwpmSubLayerAdd0(m_engine, &subLayer, nullptr);
-	
-    if (result != FWP_E_ALREADY_EXISTS)
-    {
-        EXIT_ON_ERROR(FwpmSubLayerAdd0);
-    }
-
-    result = FwpmTransactionCommit0(m_engine);
-    EXIT_ON_ERROR(FwpmTransactionCommit0);
-
-CLEANUP:
-	
-    return result;
+    CHECK_PRECOND(result == ERROR_SUCCESS || result == FWP_E_ALREADY_EXISTS);
 }
 
-DWORD WfpProvider::Uninstall()
+void WfpProvider::Uninstall()
 {
     DWORD result = ERROR_SUCCESS;
     FWPM_SESSION0 session;
 
+    SCOPE_EXIT
+    {
+       CHECK_WIN32(FwpmEngineClose0(m_engine));
+    };
+
     memset(&session, 0, sizeof(session));
     session.txnWaitTimeoutInMSec = INFINITE;
 
-    // The authentication service should always be RPC_C_AUTHN_DEFAULT.
-    result = FwpmEngineOpen0(
-	    nullptr,
-        RPC_C_AUTHN_DEFAULT,
-	    nullptr,
-        &session,
-        &m_engine
-    );
-    EXIT_ON_ERROR(FwpmEngineOpen0);
-
-
-    result = FwpmTransactionBegin0(m_engine, 0);
-    EXIT_ON_ERROR(FwpmTransactionBegin0);
+    CHECK_WIN32(FwpmTransactionBegin0(m_engine, 0));
 
     result = FwpmSubLayerDeleteByKey0(m_engine, &m_sublayerKey);
-    if (result != FWP_E_SUBLAYER_NOT_FOUND)
-    {
-        // Ignore FWP_E_SUBLAYER_NOT_FOUND
-        EXIT_ON_ERROR(FwpmSubLayerDeleteByKey0);
-    }
+    CHECK_PRECOND(result == FWP_E_SUBLAYER_NOT_FOUND || result == ERROR_SUCCESS);
 
     result = FwpmProviderDeleteByKey0(m_engine, &m_providerKey);
-    if (result != FWP_E_PROVIDER_NOT_FOUND)
-    {
-        EXIT_ON_ERROR(FwpmProviderDeleteByKey0);
-    }
+    CHECK_PRECOND(result == FWP_E_PROVIDER_NOT_FOUND || result == ERROR_SUCCESS);
 
-    result = FwpmTransactionCommit0(m_engine);
-    EXIT_ON_ERROR(FwpmTransactionCommit0);
-
-CLEANUP:
-    FwpmEngineClose0(m_engine);
-    return result;
+    CHECK_WIN32(FwpmTransactionCommit0(m_engine));
 }
 
-unsigned long WfpProvider::Createfilter(_In_ HANDLE hengine, _In_opt_ LPCWSTR name,
+DWORD WfpProvider::CreateFilter(_In_ HANDLE hengine, _In_opt_ LPCWSTR name,
                                 _In_count_(count) FWPM_FILTER_CONDITION* lpcond, _In_ UINT32 count, _In_ UINT8 weight,
                                 _In_opt_ LPCGUID layer_id, _In_opt_ LPCGUID callout_id, _In_ FWP_ACTION_TYPE action,
                                 _In_ UINT32 flags, vector<GUID> guids)
@@ -156,7 +128,9 @@ unsigned long WfpProvider::Createfilter(_In_ HANDLE hengine, _In_opt_ LPCWSTR na
     filter.flags |= FWPM_FILTER_FLAG_INDEXED;
 
     if (flags)
+    {
         filter.flags |= flags;
+    }
 
     filter.displayData.name = _wcsdup(filter_name.c_str());
     filter.displayData.description = _wcsdup(filter_description.c_str());
@@ -173,17 +147,19 @@ unsigned long WfpProvider::Createfilter(_In_ HANDLE hengine, _In_opt_ LPCWSTR na
     }
 
     if (layer_id)
+    {
         memcpy(&filter.layerKey, layer_id, sizeof(GUID));
+    }
 
     if (callout_id)
+    {
         memcpy(&filter.action.calloutKey, callout_id, sizeof(GUID));
+    }
 
     code = FwpmFilterAdd(hengine, &filter, nullptr, &filter_id);
-
-    if (code == ERROR_SUCCESS)
-    {
-        guids.push_back(filter.filterKey);
-    }
+    CHECK_WIN32(code);
+	
+    guids.push_back(filter.filterKey);
 
     return code;
 }
@@ -199,26 +175,21 @@ void WfpProvider::ConfigOutboundTraffic(bool isBlock)
     fwfc[0].matchType = FWP_MATCH_FLAGS_ALL_SET;
     fwfc[0].conditionValue.type = FWP_UINT32;
     fwfc[0].conditionValue.uint32 = FWP_CONDITION_FLAG_IS_LOOPBACK;
+    fwfc[0].matchType = FWP_MATCH_FLAGS_ANY_SET;
+    fwfc[0].conditionValue.uint32 |= FWP_CONDITION_FLAG_IS_APPCONTAINER_LOOPBACK;
 
-    // tests if the network traffic is (non-)app container loopback traffic (win8+)
-
-    {
-        fwfc[0].matchType = FWP_MATCH_FLAGS_ANY_SET;
-        fwfc[0].conditionValue.uint32 |= FWP_CONDITION_FLAG_IS_APPCONTAINER_LOOPBACK;
-    }
-
-    Createfilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_CONNECT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
-    Createfilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_CONNECT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+    CreateFilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_CONNECT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+    CreateFilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_CONNECT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
                            
     // win7+               
-    Createfilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
-    Createfilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+    CreateFilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+    CreateFilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
                            
-    Createfilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
-    Createfilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+    CreateFilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+    CreateFilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
                            
-    Createfilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
-    Createfilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+    CreateFilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+    CreateFilter(m_engine, nullptr, fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
 
     // ipv4/ipv6 loopback
     vector<wstring> ipList = {
@@ -294,13 +265,13 @@ void WfpProvider::ConfigOutboundTraffic(bool isBlock)
 
             fwfc[1].fieldKey = FWPM_CONDITION_IP_REMOTE_ADDRESS;
         	
-            Createfilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_CONNECT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+            CreateFilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_CONNECT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
             // win7+
-            Createfilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+            CreateFilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
 
             fwfc[1].fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
-            Createfilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
-            Createfilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+            CreateFilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+            CreateFilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
         }
         else if (ni.Format == NET_ADDRESS_IPV6)
         {
@@ -315,14 +286,14 @@ void WfpProvider::ConfigOutboundTraffic(bool isBlock)
 
             fwfc[1].fieldKey = FWPM_CONDITION_IP_REMOTE_ADDRESS;
 
-            Createfilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_CONNECT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+            CreateFilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_CONNECT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
 
             // win7+
-            Createfilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+            CreateFilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
 
             fwfc[1].fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
-            Createfilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
-            Createfilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+            CreateFilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+            CreateFilter(m_engine, nullptr, fwfc, 2, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_RESOURCE_ASSIGNMENT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
         }
 		
 	}
@@ -336,7 +307,7 @@ void WfpProvider::ConfigOutboundTraffic(bool isBlock)
         fwfc[0].conditionValue.type = FWP_UINT8;
         fwfc[0].conditionValue.uint8 = IPPROTO_IPV6; // ipv6 header
 
-        Createfilter(m_engine,L"Allow6to4", fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+        CreateFilter(m_engine,L"Allow6to4", fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
 
         // allows icmpv6 router solicitation messages, which are required for the ipv6 stack to work properly
         fwfc[0].fieldKey = FWPM_CONDITION_ICMP_TYPE;
@@ -344,19 +315,19 @@ void WfpProvider::ConfigOutboundTraffic(bool isBlock)
         fwfc[0].conditionValue.type = FWP_UINT16;
         fwfc[0].conditionValue.uint16 = 0x85;
 
-        Createfilter(m_engine, L"AllowIcmpV6Type133", fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+        CreateFilter(m_engine, L"AllowIcmpV6Type133", fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
 
         // allows icmpv6 router advertise messages, which are required for the ipv6 stack to work properly
         fwfc[0].conditionValue.uint16 = 0x86;
-        Createfilter(m_engine, L"AllowIcmpV6Type134", fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+        CreateFilter(m_engine, L"AllowIcmpV6Type134", fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
 
         // allows icmpv6 neighbor solicitation messages, which are required for the ipv6 stack to work properly
         fwfc[0].conditionValue.uint16 = 0x87;
-        Createfilter(m_engine,  L"AllowIcmpV6Type135", fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+        CreateFilter(m_engine,  L"AllowIcmpV6Type135", fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
 
         // allows icmpv6 neighbor advertise messages, which are required for the ipv6 stack to work properly
         fwfc[0].conditionValue.uint16 = 0x88;
-        Createfilter(m_engine, L"AllowIcmpV6Type136", fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
+        CreateFilter(m_engine, L"AllowIcmpV6Type136", fwfc, 1, FILTER_WEIGHT_HIGHEST_IMPORTANT, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, FWP_ACTION_PERMIT, 0, m_filderIds);
     }
 
     // prevent port scanning using stealth discards and silent drops
@@ -376,30 +347,29 @@ void WfpProvider::ConfigOutboundTraffic(bool isBlock)
         fwfc[1].conditionValue.type = FWP_UINT16;
         fwfc[1].conditionValue.uint16 = 0x03; // destination unreachable
 
-        Createfilter(m_engine, FILTER_NAME_ICMP_ERROR, fwfc, 2, FILTER_WEIGHT_HIGHEST, &FWPM_LAYER_OUTBOUND_ICMP_ERROR_V4, nullptr, FWP_ACTION_BLOCK, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
-        Createfilter(m_engine, FILTER_NAME_ICMP_ERROR, fwfc, 2, FILTER_WEIGHT_HIGHEST, &FWPM_LAYER_OUTBOUND_ICMP_ERROR_V6, nullptr, FWP_ACTION_BLOCK, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
+        CreateFilter(m_engine, FILTER_NAME_ICMP_ERROR, fwfc, 2, FILTER_WEIGHT_HIGHEST, &FWPM_LAYER_OUTBOUND_ICMP_ERROR_V4, nullptr, FWP_ACTION_BLOCK, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
+        CreateFilter(m_engine, FILTER_NAME_ICMP_ERROR, fwfc, 2, FILTER_WEIGHT_HIGHEST, &FWPM_LAYER_OUTBOUND_ICMP_ERROR_V6, nullptr, FWP_ACTION_BLOCK, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
 
         // blocks tcp port scanners (exclude loopback)
         fwfc[0].conditionValue.uint32 |= FWP_CONDITION_FLAG_IS_IPSEC_SECURED;
 
-        Createfilter(m_engine, FILTER_NAME_TCP_RST_ONCLOSE, fwfc, 1, FILTER_WEIGHT_HIGHEST, &FWPM_LAYER_INBOUND_TRANSPORT_V4_DISCARD, &FWPM_CALLOUT_WFP_TRANSPORT_LAYER_V4_SILENT_DROP, FWP_ACTION_CALLOUT_TERMINATING, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
-        Createfilter(m_engine, FILTER_NAME_TCP_RST_ONCLOSE, fwfc, 1, FILTER_WEIGHT_HIGHEST, &FWPM_LAYER_INBOUND_TRANSPORT_V6_DISCARD, &FWPM_CALLOUT_WFP_TRANSPORT_LAYER_V6_SILENT_DROP, FWP_ACTION_CALLOUT_TERMINATING, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
+        CreateFilter(m_engine, FILTER_NAME_TCP_RST_ONCLOSE, fwfc, 1, FILTER_WEIGHT_HIGHEST, &FWPM_LAYER_INBOUND_TRANSPORT_V4_DISCARD, &FWPM_CALLOUT_WFP_TRANSPORT_LAYER_V4_SILENT_DROP, FWP_ACTION_CALLOUT_TERMINATING, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
+        CreateFilter(m_engine, FILTER_NAME_TCP_RST_ONCLOSE, fwfc, 1, FILTER_WEIGHT_HIGHEST, &FWPM_LAYER_INBOUND_TRANSPORT_V6_DISCARD, &FWPM_CALLOUT_WFP_TRANSPORT_LAYER_V6_SILENT_DROP, FWP_ACTION_CALLOUT_TERMINATING, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
     }
-
 	
     FWP_ACTION_TYPE action = isBlock ? FWP_ACTION_BLOCK : FWP_ACTION_PERMIT;
 
     // configure outbound layer
-    Createfilter(m_engine, FILTER_NAME_BLOCK_CONNECTION, nullptr, 0, FILTER_WEIGHT_LOWEST, &FWPM_LAYER_ALE_AUTH_CONNECT_V4, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
-    Createfilter(m_engine, FILTER_NAME_BLOCK_CONNECTION, nullptr, 0, FILTER_WEIGHT_LOWEST, &FWPM_LAYER_ALE_AUTH_CONNECT_V6, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
+    CreateFilter(m_engine, FILTER_NAME_BLOCK_CONNECTION, nullptr, 0, FILTER_WEIGHT_LOWEST, &FWPM_LAYER_ALE_AUTH_CONNECT_V4, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
+    CreateFilter(m_engine, FILTER_NAME_BLOCK_CONNECTION, nullptr, 0, FILTER_WEIGHT_LOWEST, &FWPM_LAYER_ALE_AUTH_CONNECT_V6, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
 
     // win7+
-    Createfilter(m_engine, FILTER_NAME_BLOCK_CONNECTION_REDIRECT, nullptr, 0, FILTER_WEIGHT_LOWEST, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V4, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
-    Createfilter(m_engine, FILTER_NAME_BLOCK_CONNECTION_REDIRECT, nullptr, 0, FILTER_WEIGHT_LOWEST, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V6, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
+    CreateFilter(m_engine, FILTER_NAME_BLOCK_CONNECTION_REDIRECT, nullptr, 0, FILTER_WEIGHT_LOWEST, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V4, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
+    CreateFilter(m_engine, FILTER_NAME_BLOCK_CONNECTION_REDIRECT, nullptr, 0, FILTER_WEIGHT_LOWEST, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V6, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
 
     // configure inbound layer
-    Createfilter(m_engine, FILTER_NAME_BLOCK_RECVACCEPT, nullptr, 0, FILTER_WEIGHT_LOWEST, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
-    Createfilter(m_engine, FILTER_NAME_BLOCK_RECVACCEPT, nullptr, 0, FILTER_WEIGHT_LOWEST, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
+    CreateFilter(m_engine, FILTER_NAME_BLOCK_RECVACCEPT, nullptr, 0, FILTER_WEIGHT_LOWEST, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
+    CreateFilter(m_engine, FILTER_NAME_BLOCK_RECVACCEPT, nullptr, 0, FILTER_WEIGHT_LOWEST, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, action, FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT, m_filderIds);
 }
 
 void WfpProvider::ApplyConditionalFilters(const wstring& appPath, UINT8 protocol = 0, const wstring& remoteRule = L"", const wstring& localRule = L"")
@@ -411,16 +381,14 @@ void WfpProvider::ApplyConditionalFilters(const wstring& appPath, UINT8 protocol
     if (!appPath.empty())
     {
         fwpApplicationByteBlob = (FWP_BYTE_BLOB*)malloc(sizeof(FWP_BYTE_BLOB));
-        auto result = FwpmGetAppIdFromFileName0(appPath.c_str(), &fwpApplicationByteBlob);
-        if (result == ERROR_SUCCESS)
-        {
-            fwfc[count].fieldKey = FWPM_CONDITION_ALE_APP_ID;
-            fwfc[count].matchType = FWP_MATCH_EQUAL;
-            fwfc[count].conditionValue.type = FWP_BYTE_BLOB_TYPE;
-            fwfc[count].conditionValue.byteBlob = fwpApplicationByteBlob;
+        CHECK_WIN32(FwpmGetAppIdFromFileName0(appPath.c_str(), &fwpApplicationByteBlob));
+    	
+        fwfc[count].fieldKey = FWPM_CONDITION_ALE_APP_ID;
+        fwfc[count].matchType = FWP_MATCH_EQUAL;
+        fwfc[count].conditionValue.type = FWP_BYTE_BLOB_TYPE;
+        fwfc[count].conditionValue.byteBlob = fwpApplicationByteBlob;
 
-            count += 1;
-        }
+        count += 1;
     }
 
     const vector<wstring> rules = { remoteRule, localRule };
@@ -462,20 +430,20 @@ void WfpProvider::ApplyConditionalFilters(const wstring& appPath, UINT8 protocol
 	
 	// outbound layer filter
 	// permit ipv4 for app
-    Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_CONNECT_V4, nullptr, action, 0, m_AppFilderIds);
+    CreateFilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_CONNECT_V4, nullptr, action, 0, m_AppFilderIds);
 
     // win7+
-    Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V4, nullptr, action, 0, m_AppFilderIds);
+    CreateFilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V4, nullptr, action, 0, m_AppFilderIds);
    
     // permit ipv6 for app
-    Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_CONNECT_V6, nullptr, action, 0, m_AppFilderIds);
+    CreateFilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_CONNECT_V6, nullptr, action, 0, m_AppFilderIds);
 
     // win7+
-    Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V6, nullptr, action, 0, m_AppFilderIds);
+    CreateFilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_CONNECT_REDIRECT_V6, nullptr, action, 0, m_AppFilderIds);
 
 	// inbound layer filter
-    Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4, nullptr, action, 0, m_AppFilderIds);
-    Createfilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, action, 0, m_AppFilderIds);
+    CreateFilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4, nullptr, action, 0, m_AppFilderIds);
+    CreateFilter(m_engine, name, fwfc, count, weight, &FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6, nullptr, action, 0, m_AppFilderIds);
 
     if (fwpApplicationByteBlob)
     {
@@ -485,9 +453,12 @@ void WfpProvider::ApplyConditionalFilters(const wstring& appPath, UINT8 protocol
 
 void WfpProvider::CreateAllFilters(vector<wstring> appsToPermit)
 {
-    DWORD result = ERROR_SUCCESS;
-	
-	result = FwpmTransactionBegin0(m_engine, 0);
+    CHECK_WIN32(FwpmTransactionBegin0(m_engine, 0));
+
+    SCOPE_EXIT
+    {
+        CHECK_WIN32(FwpmTransactionCommit0(m_engine));
+    };
 
 	// internal filter rules
     ConfigOutboundTraffic(true);
@@ -502,14 +473,17 @@ void WfpProvider::CreateAllFilters(vector<wstring> appsToPermit)
     ApplyConditionalFilters(L"C:\\Windows\\System32\\svchost.exe", '\x11',L"53");
 
     ApplyConditionalFilters(L"", '\x11', L"53");
-	
-    result = FwpmTransactionCommit0(m_engine);
 }
 
-void WfpProvider::DeleteAllFilters()
+DWORD WfpProvider::DeleteAllFilters()
 {
+    DWORD result = ERROR_SUCCESS;
 	for (auto filterId : m_filderIds)
 	{
-        FwpmFilterDeleteByKey(m_engine, &filterId);
+        result = FwpmFilterDeleteByKey(m_engine, &filterId);
 	}
+
+    m_filderIds.clear();
+
+    return result;
 }

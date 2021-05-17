@@ -1,0 +1,6 @@
+[submodule "exceptxx"]
+	path = exceptxx
+	url = https://github.com/SergiusTheBest/exceptxx.git
+[submodule "ScopeExit"]
+	path = ScopeExit
+	url = https://github.com/SergiusTheBest/ScopeExit

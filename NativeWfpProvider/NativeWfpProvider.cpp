@@ -4,21 +4,50 @@
 
 void InitProvider()
 {
-	WfpProvider::Install();
+	try
+	{
+		WfpProvider::Install();
+	}
+	catch (...)
+	{
+		//ignore fore now
+	}
 }
 
 void EnableInternet()
 {
-	WfpProvider::DeleteAllFilters();
+	try
+	{
+		WfpProvider::DeleteAllFilters();
+	}
+	catch (...)
+	{
+		//ignore fore now
+	}
+	
 }
 
 void DisableInternet(wchar_t** apps, int appCount)
 {
-	std::vector<std::wstring> appsVector(apps, apps + appCount);
-	WfpProvider::CreateAllFilters(appsVector);
+	try
+	{
+		std::vector<std::wstring> appsVector(apps, apps + appCount);
+		WfpProvider::CreateAllFilters(appsVector);
+	}
+	catch (...)
+	{
+		//ignore fore now
+	}
 }
 
 void UninitProvider()
 {
-	WfpProvider::Uninstall();
+	try
+	{
+		WfpProvider::Uninstall();
+	}
+	catch (...)
+	{
+		//ignore fore now
+	}
 }
