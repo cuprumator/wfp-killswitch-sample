@@ -10,7 +10,7 @@ void InitProvider()
 	}
 	catch (...)
 	{
-		//ignore fore now
+		//ignore for now
 	}
 }
 
@@ -22,7 +22,7 @@ void EnableInternet()
 	}
 	catch (...)
 	{
-		//ignore fore now
+		//ignore for now
 	}
 	
 }
@@ -36,7 +36,7 @@ void DisableInternet(wchar_t** apps, int appCount)
 	}
 	catch (...)
 	{
-		//ignore fore now
+		//ignore for now
 	}
 }
 
@@ -48,6 +48,6 @@ void UninitProvider()
 	}
 	catch (...)
 	{
-		//ignore fore now
+		//ignore for now
 	}
 }

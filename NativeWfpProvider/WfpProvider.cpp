@@ -12,18 +12,24 @@ using namespace std;
 namespace fs = std::filesystem;
 
 HANDLE WfpProvider::m_engine = nullptr;
-std::wstring WfpProvider::m_appName = L"killswitchsample";
 std::vector<GUID> WfpProvider::m_filderIds;
 std::vector<GUID> WfpProvider::m_AppFilderIds;
+
+std::wstring WfpProvider::m_appName = L"killswitchsample";
+
 const GUID WfpProvider::m_providerKey = {
-       0x5fb216a8,
-       0xe2e8,
-       0x4024,
-       { 0xb8, 0x53, 0x39, 0x1a, 0x41, 0x68, 0x64, 0x1e }
+	0x5fb216a8,
+	0xe2e8,
+	0x4024,
+	{ 0xb8, 0x53, 0x39, 0x1a, 0x41, 0x68, 0x64, 0x1e }
 };
 
-const GUID WfpProvider::m_sublayerKey =
-{ 0x827e8ad5, 0x7106, 0x4d6b, { 0xb9, 0x21, 0xda, 0x86, 0x1f, 0x65, 0xac, 0xff } };
+const GUID WfpProvider::m_sublayerKey = {
+	0x827e8ad5,
+	0x7106,
+	0x4d6b,
+	{ 0xb9, 0x21, 0xda, 0x86, 0x1f, 0x65, 0xac, 0xff }
+};
 
 void WfpProvider::Install()
 {
@@ -111,7 +117,7 @@ DWORD WfpProvider::CreateFilter(_In_ HANDLE hengine, _In_opt_ LPCWSTR name,
     ULONG code;
 
     // create filter guid
-    HRESULT hr = CoCreateGuid(&filter.filterKey);
+    auto hr = CoCreateGuid(&filter.filterKey);
 
     if (FAILED(hr))
     {
@@ -236,7 +242,7 @@ void WfpProvider::ConfigOutboundTraffic(bool isBlock)
 	
 	for(const auto& ip: ipList)
 	{
-        ULONG code = ParseNetworkString(ip.c_str(), types, &ni, &port, &prefix_length);
+		const auto code = ParseNetworkString(ip.c_str(), types, &ni, &port, &prefix_length);
 
         if (code != ERROR_SUCCESS)
         {
